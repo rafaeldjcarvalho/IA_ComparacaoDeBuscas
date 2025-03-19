@@ -57,7 +57,7 @@ class Labirinto:
         return vizinhos
 
     def busca_largura(self, passo_a_passo=False, delay=0.3):
-        """Implementa a busca em largura com geração de imagens do progresso. BFS."""
+        """Implementa a busca em largura com visualização do progresso."""
         if not self.inicio or not self.objetivo:
             raise ValueError("Pontos de início ou objetivo não definidos no labirinto.")
         
@@ -65,10 +65,17 @@ class Labirinto:
         visitados = {self.inicio: None}
         nos_expandidos = 0
         image_paths = []
+        explorados = set()  # Para armazenar os nós já visitados
 
         while fila:
             atual = fila.popleft()
             nos_expandidos += 1
+            explorados.add(atual)  # Marca o nó como explorado
+
+            # Gera imagem do progresso da busca
+            output_path = f"temp_exploracao_{nos_expandidos}.png"
+            self.create_labyrinth_image(list(explorados), output_path, final_path=[])
+            image_paths.append(output_path)
 
             if atual == self.objetivo:
                 caminho = []
@@ -77,9 +84,10 @@ class Labirinto:
                     atual = visitados[atual]
                 caminho.reverse()
 
-                for i, passo in enumerate(caminho):
-                    output_path = f"temp_path_{i}.png"
-                    self.create_labyrinth_image(caminho[:i + 1], output_path)
+                # Adiciona imagens da reconstrução do caminho final
+                for i in range(len(caminho)):
+                    output_path = f"temp_caminho_{i}.png"
+                    self.create_labyrinth_image(list(explorados), output_path, final_path=caminho[:i + 1])
                     image_paths.append(output_path)
 
                 return caminho, nos_expandidos, image_paths
@@ -88,6 +96,8 @@ class Labirinto:
                 if vizinho not in visitados:
                     fila.append(vizinho)
                     visitados[vizinho] = atual
+
+        return None, nos_expandidos, image_paths
     
     def busca_profundidade(self, passo_a_passo=False):
         """Implementa a Busca em Profundidade (DFS) com contagem de nós expandidos e geração de GIF."""
@@ -98,12 +108,14 @@ class Labirinto:
         visitados = {self.inicio: None}
         nos_expandidos = 0  # Contador de nós expandidos
         image_paths = []
+        explorados = set()  # Armazena os nós que foram visitados
 
         while pilha:
             atual = pilha.pop()
             nos_expandidos += 1  # Incrementa o contador ao expandir um nó
+            explorados.add(atual)  # Marca como explorado
 
-            # Salva imagens do progresso
+            # Salva imagens do progresso mostrando nós explorados
             if passo_a_passo:
                 caminho_atual = []
                 temp = atual
@@ -111,17 +123,20 @@ class Labirinto:
                     caminho_atual.append(temp)
                     temp = visitados.get(temp)
                 caminho_atual.reverse()
+
                 output_path = f"dfs_temp_{len(image_paths)}.png"
-                self.create_labyrinth_image(caminho_atual, output_path)
+                self.create_labyrinth_image(explorados, output_path, caminho_atual)  # Passa nós explorados
                 image_paths.append(output_path)
 
-            # Se encontrou o objetivo, reconstrói o caminho
+            # Se encontrou o objetivo, reconstrói o caminho final
             if atual == self.objetivo:
                 caminho = []
                 while atual:
                     caminho.append(atual)
                     atual = visitados[atual]
-                return caminho[::-1], nos_expandidos, image_paths
+
+                caminho.reverse()  # Inverte o caminho para a ordem correta
+                return caminho, nos_expandidos, image_paths
 
             # Explora os vizinhos
             for vizinho in self.obter_vizinhos(*atual):
@@ -130,7 +145,6 @@ class Labirinto:
                     visitados[vizinho] = atual
 
         raise ValueError("Caminho não encontrado com DFS.")
-
     
     def busca_a_estrela(self, passo_a_passo=False):
         """Implementa o algoritmo A* com contagem de nós expandidos e geração de GIF."""
@@ -147,12 +161,14 @@ class Labirinto:
         visitados = {self.inicio: None}
         nos_expandidos = 0  # Contador de nós expandidos
         image_paths = []
+        explorados = set()  # Conjunto para armazenar nós visitados
 
         while fila_prioridade:
             _, atual = heapq.heappop(fila_prioridade)
             nos_expandidos += 1  # Incrementa o contador de nós expandidos
+            explorados.add(atual)  # Marca como explorado
 
-            # Salva imagens do progresso
+            # Salva imagens do progresso mostrando nós explorados
             if passo_a_passo:
                 caminho_atual = []
                 temp = atual
@@ -160,8 +176,9 @@ class Labirinto:
                     caminho_atual.append(temp)
                     temp = visitados.get(temp)
                 caminho_atual.reverse()
+
                 output_path = f"a_star_temp_{len(image_paths)}.png"
-                self.create_labyrinth_image(caminho_atual, output_path)
+                self.create_labyrinth_image(explorados, output_path, caminho_atual)  # Passa nós explorados
                 image_paths.append(output_path)
 
             # Reconstrói o caminho se o objetivo foi alcançado
@@ -170,7 +187,9 @@ class Labirinto:
                 while atual:
                     caminho.append(atual)
                     atual = visitados[atual]
-                return caminho[::-1], nos_expandidos, image_paths
+
+                caminho.reverse()  # Inverte para ordem correta
+                return caminho, nos_expandidos, image_paths
 
             # Explora os vizinhos
             for vizinho in self.obter_vizinhos(*atual):
@@ -214,8 +233,8 @@ class Labirinto:
 
         return resultados
 
-    def create_labyrinth_image(self, path, output_path):
-        """Gera uma imagem visualizando o labirinto e o caminho."""
+    def create_labyrinth_image(self, explored, output_path, final_path=[]):
+        """Gera uma imagem visualizando o labirinto, os nós explorados e o caminho final."""
         tile_size = 20
         img_width = self.largura * tile_size
         img_height = self.altura * tile_size
@@ -235,8 +254,12 @@ class Labirinto:
                     cor = "red"
                 draw.rectangle([x * tile_size, y * tile_size, (x + 1) * tile_size, (y + 1) * tile_size], fill=cor)
 
-        # Desenhando o caminho
-        for (y, x) in path:  # Note que as coordenadas estão invertidas para o desenho
+        # Desenhando os nós explorados (visualização da busca)
+        for (y, x) in explored:
+            draw.rectangle([x * tile_size, y * tile_size, (x + 1) * tile_size, (y + 1) * tile_size], fill="lightgray")
+
+        # Desenhando o caminho final
+        for (y, x) in final_path:
             draw.rectangle([x * tile_size, y * tile_size, (x + 1) * tile_size, (y + 1) * tile_size], fill="green")
 
         img.save(output_path)
@@ -272,6 +295,8 @@ class Labirinto:
             except Exception as e:
                 print(f"Erro ao excluir {image_path}: {e}")
 
+
+# Código Principal
 labirinto = Labirinto(matriz = [
     [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [2, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0],  # 2 = S (start), 3 = G (goal)
@@ -304,6 +329,8 @@ labirinto.create_gif(image_paths_a_star, "a_star_path.gif")  # Cria o GIF antes 
 # Limpar arquivos temporários após criar os GIFs
 labirinto.limpar_arquivos_temporarios(image_paths_dfs + image_paths_a_star)
 
+# Criar comparações
 resultados = labirinto.comparar_buscas()
 
+# Limpar arquivos temporários após criar o gif do BFS
 labirinto.limpar_arquivos_temporarios(image_paths_bfs)
